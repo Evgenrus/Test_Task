@@ -68,6 +68,21 @@ func (c *MongoConnector) RefreshHash(guid string, hash []byte) error {
 	return err
 }
 
+func (c *MongoConnector) GetRecordByGuid(guid string) (*dto.TokenRecord, error) {
+	if len(guid) == 0 {
+		return nil, errors.New("guid cannot be empty")
+	}
+
+	var tokenRecord = &dto.TokenRecord{}
+
+	err := c.Collection.FindOne(c.ctx, bson.M{"_id": guid}).Decode(tokenRecord)
+	if err != nil {
+		return nil, err
+	}
+
+	return tokenRecord, nil
+}
+
 func (c *MongoConnector) Cleanup() {
 	c.client.Disconnect(c.ctx)
 }
