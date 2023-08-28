@@ -1,6 +1,6 @@
 package dto
 
 type TokenRecord struct {
-	Guid        string
-	RefreshHash []byte
+	Guid        string `bson:"_id"`
+	RefreshHash []byte `bson:"refresh_hash"`
 }
