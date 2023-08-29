@@ -9,15 +9,15 @@ import (
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/bcrypt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
 
 var (
-	correctRefToken    = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0IiwiZXhwIjoxNTU1NTU1NTU1NX0.bIYFNTlIddyBLbg427sT8cZDKW2wJN4gnAJKKpJNrQrwQScfD_FadTsAQMcQR-ZeCCgf8UjR_2HNFt5YVguBBw"
-	outdatedRefToken   = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0IiwiZXhwIjoxNTU1NTU1NTV9.Xi4_Wvoh3W-OqrmFGhXEql0HpxBa3Wu0lYrrL4TmSFeuh9HVT0IWwvXMpAuYpKnMJVpp1eat-mmUcOFRdoGz4Q"
-	invalidRefToken    = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0IiwiZXhwIjoxNTU1NTU1NTV9.Xi4_Wvoh3W-OqrmFGhXEql0HpxBa3Wu0lYrrL4TmSFeuh9HVT0IWwvXMpAuYpKnMJVpp1eat-OFRdoGz4Q"
-	correctAccessToken = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0IiwiaWF0IjoxOTk5MjM5MDIyfQ.Bx7sjbuewNf2AQZTH2LqxoQC7TmwKOJDJF_35Ieb96f384vXEh3eDy9lA56v9yzeYP_LIWoR_8t32Y_c75uNaw"
+	correctRefToken  = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0IiwiZXhwIjoxNTU1NTU1NTU1NX0.bIYFNTlIddyBLbg427sT8cZDKW2wJN4gnAJKKpJNrQrwQScfD_FadTsAQMcQR-ZeCCgf8UjR_2HNFt5YVguBBw"
+	outdatedRefToken = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0IiwiZXhwIjoxNTU1NTU1NTV9.Xi4_Wvoh3W-OqrmFGhXEql0HpxBa3Wu0lYrrL4TmSFeuh9HVT0IWwvXMpAuYpKnMJVpp1eat-mmUcOFRdoGz4Q"
+	invalidRefToken  = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0IiwiZXhwIjoxNTU1NTU1NTV9.Xi4_Wvoh3W-OqrmFGhXEql0HpxBa3Wu0lYrrL4TmSFeuh9HVT0IWwvXMpAuYpKnMJVpp1eat-OFRdoGz4Q"
 )
 
 func initTests() *JwtServiceImpl {
@@ -34,7 +34,9 @@ func initTests() *JwtServiceImpl {
 
 	connectorMocks.On("RefreshHash", mock.Anything, mock.Anything).Return(nil)
 
-	connectorMocks.On("GetRecordByGuid", "1234").Return(&dto.TokenRecord{Guid: "1234", RefreshHash: string(base64.StdEncoding.EncodeToString(hash))}, nil)
+	sign := strings.Split(correctRefToken, ".")[2]
+	signHash, _ := bcrypt.GenerateFromPassword([]byte(sign), bcrypt.DefaultCost)
+	connectorMocks.On("GetRecordByGuid", "1234").Return(&dto.TokenRecord{Guid: "1234", RefreshHash: string(signHash)}, nil)
 
 	os.Setenv("JWT_KEY", "123456")
 	os.Setenv("REF_KEY", "098765")
@@ -96,7 +98,7 @@ func TestJwtService_GenerateTokenPair(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			_, err := service.SaveNewTokenRecord(testCase.guid)
+			_, err := service.LoginUser(testCase.guid)
 			assert.Equal(t, err == nil, testCase.expected)
 		})
 	}
@@ -154,7 +156,8 @@ func TestJwtService_RefreshToken(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			_, err := service.RefreshToken(testCase.token)
+			base := base64.StdEncoding.EncodeToString([]byte(correctRefToken))
+			_, err := service.RefreshToken(base)
 			assert.Equal(t, err == nil, testCase.expected)
 		})
 	}

@@ -38,12 +38,16 @@ func (c *MongoConnector) CreateTokenRecord(record *dto.TokenRecord) error {
 
 	err := c.Collection.FindOne(c.ctx, bson.M{"_id": record.Guid}).Err()
 	if err == nil {
-		return errors.New("this user already exists")
-	} else if !errors.Is(err, mongo.ErrNoDocuments) {
-		return err
+		err := c.RefreshHash(record.Guid, record.RefreshHash)
+		if err != nil {
+			return err
+		}
+	} else if errors.Is(err, mongo.ErrNoDocuments) {
+		_, err = c.Collection.InsertOne(c.ctx, bson.M{"_id": record.Guid, "refresh_token": record.RefreshHash})
+		if err != nil {
+			return err
+		}
 	}
-
-	_, err = c.Collection.InsertOne(c.ctx, bson.M{"_id": record.Guid, "refresh_token": record.RefreshHash})
 
 	return err
 }

@@ -4,6 +4,7 @@ import (
 	"Test_Task_Jwt/interfaces"
 	"Test_Task_Jwt/models"
 	"Test_Task_Jwt/models/dto"
+	"encoding/base64"
 	"errors"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -39,7 +40,7 @@ func (s *JwtServiceImpl) CreateToken(guid string, expires time.Time, key []byte)
 	return token.SignedString(key)
 }
 
-func (s *JwtServiceImpl) SaveNewTokenRecord(guid string) (*models.TokenPair, error) {
+func (s *JwtServiceImpl) LoginUser(guid string) (*models.TokenPair, error) {
 	tokens, err := s.generateTokenPair(guid)
 	if err != nil {
 		return nil, err
@@ -47,13 +48,14 @@ func (s *JwtServiceImpl) SaveNewTokenRecord(guid string) (*models.TokenPair, err
 
 	sign := strings.Split(tokens.RefreshToken, ".")[2]
 
-	base := getHashString(sign)
+	hash := getHashString(sign)
+	base := base64.StdEncoding.EncodeToString([]byte(tokens.RefreshToken))
 
-	err = s.dbConn.CreateTokenRecord(&dto.TokenRecord{Guid: guid, RefreshHash: base})
+	err = s.dbConn.CreateTokenRecord(&dto.TokenRecord{Guid: guid, RefreshHash: hash})
 	if err != nil {
 		return nil, err
 	}
-	return tokens, err
+	return &models.TokenPair{AccessToken: tokens.AccessToken, RefreshToken: base}, err
 }
 
 func (s *JwtServiceImpl) generateTokenPair(guid string) (*models.TokenPair, error) {
@@ -87,7 +89,7 @@ func (s *JwtServiceImpl) CheckToken(token string, keyEnv string) (jwt.Claims, er
 	})
 
 	if !parsed.Valid {
-		return nil, err
+		return nil, errors.New("token is not valid")
 	}
 
 	expDate, err := parsed.Claims.GetExpirationTime()
@@ -102,15 +104,18 @@ func (s *JwtServiceImpl) CheckToken(token string, keyEnv string) (jwt.Claims, er
 	return parsed.Claims, nil
 }
 
-func (s *JwtServiceImpl) RefreshToken(refresh string) (*models.TokenPair, error) {
-	claims, err := s.CheckToken(refresh, "REF_KEY")
+func (s *JwtServiceImpl) RefreshToken(ref string) (*models.TokenPair, error) {
+	bytes, err := base64.StdEncoding.DecodeString(ref)
+	refStr := string(bytes)
+
+	claims, err := s.CheckToken(refStr, "REF_KEY")
 	if err != nil {
 		return nil, err
 	}
 
 	subject, err := claims.GetSubject()
 	if err != nil {
-		return nil, err
+		return nil, errors.New("couldn't find 'Subject'")
 	}
 
 	record, err := s.dbConn.GetRecordByGuid(subject)
@@ -118,11 +123,11 @@ func (s *JwtServiceImpl) RefreshToken(refresh string) (*models.TokenPair, error)
 		return nil, err
 	}
 
-	sign := strings.Split(refresh, ".")[2]
+	sign := strings.Split(refStr, ".")[2]
 
 	err = bcrypt.CompareHashAndPassword([]byte(record.RefreshHash), []byte(sign))
 	if err != nil {
-		return nil, err
+		return nil, errors.New("wrong refresh token")
 	}
 
 	tokens, err := s.generateTokenPair(subject)
@@ -137,9 +142,11 @@ func (s *JwtServiceImpl) RefreshToken(refresh string) (*models.TokenPair, error)
 		return nil, err
 	}
 
+	base := base64.StdEncoding.EncodeToString([]byte(tokens.RefreshToken))
+
 	return &models.TokenPair{
 		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
+		RefreshToken: base,
 	}, nil
 }
 

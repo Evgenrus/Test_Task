@@ -20,7 +20,7 @@ func GetTokenHandler(jwtService *services.JwtServiceImpl) http.HandlerFunc {
 				utils.WriteError("GUID is empty", http.StatusBadRequest, w)
 			}
 
-			tokens, err := jwtService.SaveNewTokenRecord(guid)
+			tokens, err := jwtService.LoginUser(guid)
 			if err != nil {
 				utils.WriteError("Error in creating tokens", http.StatusBadRequest, w)
 			}
