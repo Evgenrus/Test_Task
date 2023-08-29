@@ -48,7 +48,7 @@ func (c *MongoConnector) CreateTokenRecord(record *dto.TokenRecord) error {
 	return err
 }
 
-func (c *MongoConnector) RefreshHash(guid string, hash []byte) error {
+func (c *MongoConnector) RefreshHash(guid string, hash string) error {
 	if len(guid) == 0 || len(hash) == 0 {
 		return errors.New("GUID or hash cannot be empty")
 	}
@@ -73,14 +73,14 @@ func (c *MongoConnector) GetRecordByGuid(guid string) (*dto.TokenRecord, error) 
 		return nil, errors.New("guid cannot be empty")
 	}
 
-	var tokenRecord = &dto.TokenRecord{}
+	var tokenRecord dto.TokenRecord
 
-	err := c.Collection.FindOne(c.ctx, bson.M{"_id": guid}).Decode(tokenRecord)
+	err := c.Collection.FindOne(c.ctx, bson.D{{"_id", guid}}).Decode(&tokenRecord)
 	if err != nil {
 		return nil, err
 	}
 
-	return tokenRecord, nil
+	return &tokenRecord, nil
 }
 
 func (c *MongoConnector) Cleanup() {
