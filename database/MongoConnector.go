@@ -56,7 +56,7 @@ func (c *MongoConnector) RefreshHash(guid string, hash string) error {
 	filter := bson.D{{"_id", guid}}
 	update := bson.D{
 		{"$set", bson.D{
-			{"refresh_hash", hash},
+			{"refresh_token", hash},
 		},
 		}}
 
@@ -75,7 +75,7 @@ func (c *MongoConnector) GetRecordByGuid(guid string) (*dto.TokenRecord, error) 
 
 	var tokenRecord dto.TokenRecord
 
-	err := c.Collection.FindOne(c.ctx, bson.D{{"_id", guid}}).Decode(&tokenRecord)
+	err := c.Collection.FindOne(c.ctx, bson.M{"_id": guid}).Decode(&tokenRecord)
 	if err != nil {
 		return nil, err
 	}

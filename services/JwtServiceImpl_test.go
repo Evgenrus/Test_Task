@@ -3,6 +3,7 @@ package services
 import (
 	"Test_Task_Jwt/models/dto"
 	"Test_Task_Jwt/models/mocks"
+	"encoding/base64"
 	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,16 +24,17 @@ func initTests() *JwtServiceImpl {
 	connectorMocks := mocks.DbConnectorMocks{}
 
 	hash, _ := bcrypt.GenerateFromPassword([]byte(correctRefToken), bcrypt.DefaultCost)
+	hashString := string(hash)
 	//jwtHash, _ := bcrypt.GenerateFromPassword([]byte(correctAccessToken), bcrypt.DefaultCost)
 
-	connectorMocks.On("CreateTokenRecord", &dto.TokenRecord{Guid: "1234", RefreshHash: hash}).Return(nil)
-	connectorMocks.On("CreateTokenRecord", &dto.TokenRecord{Guid: "", RefreshHash: hash}).Return(errors.New("empty guid"))
-	connectorMocks.On("CreateTokenRecord", &dto.TokenRecord{Guid: "1234", RefreshHash: hash}).Return(errors.New("empty hash"))
+	connectorMocks.On("CreateTokenRecord", &dto.TokenRecord{Guid: "1234", RefreshHash: hashString}).Return(nil)
+	connectorMocks.On("CreateTokenRecord", &dto.TokenRecord{Guid: "", RefreshHash: hashString}).Return(errors.New("empty guid"))
+	connectorMocks.On("CreateTokenRecord", &dto.TokenRecord{Guid: "1234", RefreshHash: hashString}).Return(errors.New("empty hash"))
 	connectorMocks.On("CreateTokenRecord", mock.Anything).Return(nil)
 
 	connectorMocks.On("RefreshHash", mock.Anything, mock.Anything).Return(nil)
 
-	connectorMocks.On("GetRecordByGuid", "1234").Return(&dto.TokenRecord{Guid: "1234", RefreshHash: hash}, nil)
+	connectorMocks.On("GetRecordByGuid", "1234").Return(&dto.TokenRecord{Guid: "1234", RefreshHash: string(base64.StdEncoding.EncodeToString(hash))}, nil)
 
 	os.Setenv("JWT_KEY", "123456")
 	os.Setenv("REF_KEY", "098765")
@@ -94,7 +96,7 @@ func TestJwtService_GenerateTokenPair(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			_, err := service.GenerateTokenPair(testCase.guid)
+			_, err := service.SaveNewTokenRecord(testCase.guid)
 			assert.Equal(t, err == nil, testCase.expected)
 		})
 	}

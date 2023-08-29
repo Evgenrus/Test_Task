@@ -1,7 +1,6 @@
 package services
 
 import (
-	"Test_Task_Jwt/database"
 	"Test_Task_Jwt/interfaces"
 	"Test_Task_Jwt/models"
 	"Test_Task_Jwt/models/dto"
@@ -9,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -16,7 +16,7 @@ type JwtServiceImpl struct {
 	dbConn interfaces.DbConnector
 }
 
-func CreateJwtServices(db *database.MongoConnector) *JwtServiceImpl {
+func CreateJwtServices(db interfaces.DbConnector) *JwtServiceImpl {
 	return &JwtServiceImpl{dbConn: db}
 }
 
@@ -32,13 +32,31 @@ func (s *JwtServiceImpl) CreateToken(guid string, expires time.Time, key []byte)
 	claims := &jwt.RegisteredClaims{
 		Subject:   guid,
 		ExpiresAt: jwt.NewNumericDate(expires),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 	return token.SignedString(key)
 }
 
-func (s *JwtServiceImpl) GenerateTokenPair(guid string) (*models.TokenPair, error) {
+func (s *JwtServiceImpl) SaveNewTokenRecord(guid string) (*models.TokenPair, error) {
+	tokens, err := s.generateTokenPair(guid)
+	if err != nil {
+		return nil, err
+	}
+
+	sign := strings.Split(tokens.RefreshToken, ".")[2]
+
+	base := getHashString(sign)
+
+	err = s.dbConn.CreateTokenRecord(&dto.TokenRecord{Guid: guid, RefreshHash: base})
+	if err != nil {
+		return nil, err
+	}
+	return tokens, err
+}
+
+func (s *JwtServiceImpl) generateTokenPair(guid string) (*models.TokenPair, error) {
 	accKey := []byte(os.Getenv("JWT_KEY"))
 	refKey := []byte(os.Getenv("REF_KEY"))
 
@@ -50,13 +68,6 @@ func (s *JwtServiceImpl) GenerateTokenPair(guid string) (*models.TokenPair, erro
 		return nil, err
 	}
 	refToken, err := s.CreateToken(guid, refExp, refKey)
-	if err != nil {
-		return nil, err
-	}
-
-	hash, _ := bcrypt.GenerateFromPassword([]byte(refToken), bcrypt.DefaultCost)
-
-	err = s.dbConn.CreateTokenRecord(&dto.TokenRecord{Guid: guid, RefreshHash: hash})
 	if err != nil {
 		return nil, err
 	}
@@ -102,12 +113,37 @@ func (s *JwtServiceImpl) RefreshToken(refresh string) (*models.TokenPair, error)
 		return nil, err
 	}
 
-	tokenBytes := []byte(refresh)
-
 	record, err := s.dbConn.GetRecordByGuid(subject)
-	if err = bcrypt.CompareHashAndPassword(record.RefreshHash, tokenBytes); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
-	return s.GenerateTokenPair(subject)
+	sign := strings.Split(refresh, ".")[2]
+
+	err = bcrypt.CompareHashAndPassword([]byte(record.RefreshHash), []byte(sign))
+	if err != nil {
+		return nil, err
+	}
+
+	tokens, err := s.generateTokenPair(subject)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := getHashString(tokens.RefreshToken)
+
+	err = s.dbConn.RefreshHash(subject, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.TokenPair{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+	}, nil
+}
+
+func getHashString(refresh string) string {
+	hash, _ := bcrypt.GenerateFromPassword([]byte(refresh), bcrypt.DefaultCost)
+	return string(hash)
 }

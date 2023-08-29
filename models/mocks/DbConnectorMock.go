@@ -10,7 +10,7 @@ type DbConnectorMocks struct {
 	mock.Mock
 }
 
-func (m *DbConnectorMocks) RefreshHash(guid string, hash []byte) error {
+func (m *DbConnectorMocks) RefreshHash(guid string, hash string) error {
 	args := m.Called(guid, hash)
 	return args.Error(0)
 }

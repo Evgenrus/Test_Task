@@ -14,14 +14,14 @@ func TestMongoConnector_CreateTokenRecord(t *testing.T) {
 	cases := []struct {
 		name     string
 		guid     string
-		hash     []byte
+		hash     string
 		expected bool
 	}{
-		{"Registering user to db", "1234", []byte("refresh1234"), true},
-		{"Trying to reregister user", "1234", []byte("refresh1234"), false},
-		{"Adding another user with empty hash", "1111", []byte(""), false},
-		{"Adding another user", "1111", []byte("somerefresh"), true},
-		{"Adding third user with empty GUID", "", []byte("empty"), false},
+		{"Registering user to db", "1234", "refresh1234", true},
+		{"Trying to reregister user", "1234", "refresh1234", false},
+		{"Adding another user with empty hash", "1111", "", false},
+		{"Adding another user", "1111", "somerefresh", true},
+		{"Adding third user with empty GUID", "", "empty", false},
 	}
 
 	for _, testCase := range cases {
@@ -45,12 +45,12 @@ func TestMongoConnector_RefreshHash(t *testing.T) {
 	cases := []struct {
 		name     string
 		guid     string
-		hash     []byte
+		hash     string
 		expected bool
 	}{
-		{"Trying to insert empty hash", "1234", []byte(""), false},
-		{"Refreshing for existing user", "1234", []byte("newTokenHash"), true},
-		{"Refreshing for not existing user", "1111", []byte("shouldnt work"), false},
+		{"Trying to insert empty hash", "1234", "", false},
+		{"Refreshing for existing user", "1234", "newTokenHash", true},
+		{"Refreshing for not existing user", "1111", "shouldnt work", false},
 	}
 
 	for _, testCase := range cases {
